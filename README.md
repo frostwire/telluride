@@ -54,7 +54,7 @@ See `frostwire-tools/installer_builders/windows/TOKEN_README.md`
 
 ## License
 ```
-Copyright 2020-2023 FrostWire LLC.
+Copyright 2020-2025 FrostWire LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

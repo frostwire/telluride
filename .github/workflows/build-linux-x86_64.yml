@@ -1,0 +1,53 @@
+name: Build Linux x86_64
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'telluride-build-*'
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --upgrade --no-cache-dir astroid
+          python3 -m pip install --upgrade --no-cache-dir pylint
+          python3 -m pip install --upgrade --no-cache-dir yt_dlp
+          python3 -m pip install --upgrade --no-cache-dir pyinstaller
+
+      - name: Run pylint
+        run: |
+          python3 -m pylint --max-line-length=350 telluride.py
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile --noupx telluride.py
+          mv dist/telluride telluride_linux.x86_64
+
+      - name: Organize artifact
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "${{ github.ref }}" ]; then
+            TAG_NAME="manual-build"
+          fi
+          mkdir -p "$TAG_NAME"
+          mv telluride_linux.x86_64 "$TAG_NAME/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: telluride-linux-x86_64
+          path: ${{ github.ref_name != '' && github.ref_name || 'manual-build' }}
+          retention-days: 90

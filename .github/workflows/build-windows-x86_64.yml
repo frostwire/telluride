@@ -40,9 +40,19 @@ jobs:
           pyinstaller --onefile --noupx telluride.py
           mv dist/telluride.exe .
 
+      - name: Organize artifact
+        shell: bash
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "${{ github.ref }}" ]; then
+            TAG_NAME="manual-build"
+          fi
+          mkdir -p "$TAG_NAME"
+          mv telluride.exe "$TAG_NAME/"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: telluride-windows-x86_64
-          path: telluride.exe
+          path: ${{ github.ref_name != '' && github.ref_name || 'manual-build' }}
           retention-days: 90

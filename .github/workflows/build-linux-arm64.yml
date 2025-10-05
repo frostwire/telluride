@@ -42,9 +42,18 @@ jobs:
               mv dist/telluride telluride_linux.arm64
             "
 
+      - name: Organize artifact
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "${{ github.ref }}" ]; then
+            TAG_NAME="manual-build"
+          fi
+          mkdir -p "$TAG_NAME"
+          mv telluride_linux.arm64 "$TAG_NAME/"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: telluride-linux-arm64
-          path: telluride_linux.arm64
+          path: ${{ github.ref_name != '' && github.ref_name || 'manual-build' }}
           retention-days: 90

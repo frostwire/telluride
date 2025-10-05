@@ -38,9 +38,18 @@ jobs:
             telluride.py
           mv dist/telluride telluride_macos.x86_64
 
+      - name: Organize artifact
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "${{ github.ref }}" ]; then
+            TAG_NAME="manual-build"
+          fi
+          mkdir -p "$TAG_NAME"
+          mv telluride_macos.x86_64 "$TAG_NAME/"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: telluride-macos-x86_64
-          path: telluride_macos.x86_64
+          path: ${{ github.ref_name != '' && github.ref_name || 'manual-build' }}
           retention-days: 90

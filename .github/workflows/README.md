@@ -18,11 +18,11 @@ Each workflow can be triggered in two ways:
 Go to the Actions tab in GitHub, select the desired workflow, and click "Run workflow".
 
 ### 2. Automatic Trigger on Version Tags
-Push a tag starting with `v` (e.g., `v1.0.0`, `v2.1.3`) to automatically trigger all workflows:
+Push a tag starting with `telluride-build-` (e.g., `telluride-build-40`, `telluride-build-41`) to automatically trigger all workflows:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag telluride-build-41
+git push origin telluride-build-41
 ```
 
 ## Downloading Artifacts

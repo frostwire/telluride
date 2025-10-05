@@ -9,36 +9,38 @@ on:
 jobs:
   build:
     runs-on: macos-13
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-    
-    - name: Install dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install --upgrade --no-cache-dir astroid
-        python3 -m pip install --upgrade --no-cache-dir pylint
-        python3 -m pip install --upgrade --no-cache-dir yt_dlp
-        python3 -m pip install --upgrade --no-cache-dir pyinstaller
-    
-    - name: Run pylint
-      run: |
-        python3 -m pylint --max-line-length=350 telluride.py
-    
-    - name: Build with PyInstaller
-      run: |
-        pyinstaller --onefile --noupx --osx-bundle-identifier com.frostwire.Telluride telluride.py
-        mv dist/telluride telluride_macos.x86_64
-    
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: telluride-macos-x86_64
-        path: telluride_macos.x86_64
-        retention-days: 90
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --upgrade --no-cache-dir astroid
+          python3 -m pip install --upgrade --no-cache-dir pylint
+          python3 -m pip install --upgrade --no-cache-dir yt_dlp
+          python3 -m pip install --upgrade --no-cache-dir pyinstaller
+
+      - name: Run pylint
+        run: |
+          python3 -m pylint --max-line-length=350 telluride.py
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile --noupx \
+            --osx-bundle-identifier com.frostwire.Telluride \
+            telluride.py
+          mv dist/telluride telluride_macos.x86_64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: telluride-macos-x86_64
+          path: telluride_macos.x86_64
+          retention-days: 90

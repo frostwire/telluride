@@ -9,40 +9,40 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-        architecture: 'x64'
-    
-    - name: Install dependencies
-      shell: bash
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade --no-cache-dir astroid
-        python -m pip install --upgrade --no-cache-dir pylint
-        python -m pip install --upgrade --no-cache-dir yt_dlp
-        python -m pip install --upgrade --no-cache-dir pyinstaller
-    
-    - name: Run pylint
-      shell: bash
-      run: |
-        python -m pylint --max-line-length=350 telluride.py
-    
-    - name: Build with PyInstaller
-      shell: bash
-      run: |
-        pyinstaller --onefile --noupx telluride.py
-        mv dist/telluride.exe .
-    
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: telluride-windows-x86_64
-        path: telluride.exe
-        retention-days: 90
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: 'x64'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade --no-cache-dir astroid
+          python -m pip install --upgrade --no-cache-dir pylint
+          python -m pip install --upgrade --no-cache-dir yt_dlp
+          python -m pip install --upgrade --no-cache-dir pyinstaller
+
+      - name: Run pylint
+        shell: bash
+        run: |
+          python -m pylint --max-line-length=350 telluride.py
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          pyinstaller --onefile --noupx telluride.py
+          mv dist/telluride.exe .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: telluride-windows-x86_64
+          path: telluride.exe
+          retention-days: 90

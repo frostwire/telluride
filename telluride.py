@@ -25,7 +25,7 @@ import os
 import sys
 import yt_dlp
 
-BUILD = 41
+BUILD = 42
 
 
 def welcome():

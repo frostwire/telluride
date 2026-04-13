@@ -1,6 +1,7 @@
 build 45 - apr/12/2026
  - NEW: --playlist/-p flag to extract playlist/channel entries (up to 50) as JSON
  - extract_flat=True for fast listing, no video download during playlist mode
+ - fix: append /videos to YouTube channel URLs to get video entries instead of tab entries
 
 build 44 - mar/21/2026
  - yt_dlp 2026.3.3 -> 2026.3.17

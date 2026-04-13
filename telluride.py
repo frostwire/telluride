@@ -99,6 +99,10 @@ def main():
         yt_dlp_opts['quiet'] = True
         yt_dlp_opts['extract_flat'] = True
         yt_dlp_opts['playlist_items'] = '1-50'
+        if 'youtube.com/' in page_url and not any(suffix in page_url for suffix in ['/videos', '/streams', '/shorts', '/playlist', '/watch']):
+            if page_url.endswith('/'):
+                page_url = page_url[:-1]
+            page_url += '/videos'
         with yt_dlp.YoutubeDL(yt_dlp_opts) as ydl:
             info_dict = ydl.extract_info(page_url, download=False)
             entries = []

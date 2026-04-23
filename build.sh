@@ -82,12 +82,15 @@ ${PYINSTALLER_CMD} --onefile --noupx ${EXTRA_FLAGS} telluride.py
 
 if [ -f dist/telluride ]
 then
-  if isubuntu
+  if isubuntu || isdocker
   then
-    mv dist/telluride telluride_linux
-  elif isdocker
-  then
-    mv dist/telluride telluride_linux
+    LINUX_ARCH=`uname -m`
+    if [ ${LINUX_ARCH} == "aarch64" ]; then
+        LINUX_ARCH="arm64"
+    elif [ ${LINUX_ARCH} == "i386" ] || [ ${LINUX_ARCH} == "i686" ]; then
+        LINUX_ARCH="x86_64"
+    fi
+    mv dist/telluride telluride_linux.${LINUX_ARCH}
   elif ismac
   then
     ARCH=`arch`

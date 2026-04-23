@@ -16,6 +16,6 @@ fi
 docker \
  run \
  --cpus ${CPUS} \
- -v "$PWD/../telluride:/telluride-ubuntu" \
+ -v "$PWD:/telluride-ubuntu" \
  -it telluride-ubuntu
 

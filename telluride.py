@@ -1,6 +1,6 @@
 '''
 Telluride Cloud Video Downloader.
-Copyright 2020-2025 FrostWire LLC.
+Copyright 2020-2026 FrostWire LLC.
 Author: @gubatron
 
 A portable and easy to use yt_dlp wrapper by FrostWire.
@@ -61,6 +61,11 @@ def prepare_options_parser(parser):
         ' the video file found in the page_url. ' +
         'Does not download the video file')
     parser.add_argument(
+        "--playlist",
+        "-p",
+        action='store_true',
+        help='Extracts playlist/channel entries (up to 50) as JSON without downloading')
+    parser.add_argument(
         "page_url",
         nargs='?',
         help="The URL of the page that hosts the video you need to backup locally")
@@ -77,6 +82,7 @@ def main():
 
     audio_only = args.audio_only
     meta_only = args.meta_only
+    playlist = args.playlist
     page_url = args.page_url
 
     if page_url is None:
@@ -89,6 +95,39 @@ def main():
         'restrictfilenames': True,
         'trim_file_name': 200
     }
+    if playlist:
+        yt_dlp_opts['quiet'] = True
+        yt_dlp_opts['extract_flat'] = True
+        yt_dlp_opts['playlist_items'] = '1-50'
+        if 'youtube.com/' in page_url and not any(suffix in page_url for suffix in ['/videos', '/streams', '/shorts', '/playlist', '/watch']):
+            if page_url.endswith('/'):
+                page_url = page_url[:-1]
+            page_url += '/videos'
+        with yt_dlp.YoutubeDL(yt_dlp_opts) as ydl:
+            info_dict = ydl.extract_info(page_url, download=False)
+            entries = []
+            for entry in info_dict.get('entries', []):
+                entry_data = {
+                    'id': entry.get('id', ''),
+                    'title': entry.get('title', ''),
+                    'url': entry.get('url') or entry.get('webpage_url', ''),
+                }
+                for field in ('thumbnail', 'duration', 'upload_date', 'view_count'):
+                    if entry.get(field) is not None:
+                        entry_data[field] = entry.get(field)
+                description = entry.get('description')
+                if description:
+                    entry_data['description'] = description[:200]
+                entries.append(entry_data)
+            result = {
+                'type': 'playlist',
+                'title': info_dict.get('title', ''),
+                'extractor': info_dict.get('extractor_key', ''),
+                'entries': entries,
+            }
+            print(json.dumps(result, indent=2))
+            sys.exit(0)
+
     if meta_only:
         yt_dlp_opts['quiet'] = True
         yt_dlp_opts['format'] = 'bestaudio/best'

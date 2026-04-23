@@ -1,0 +1,1 @@
+/Users/gubatron/workspace/frostwire-tools/installer_builders/macosx/frostwire-dmg-jre/notarizeMacOSApp.sh

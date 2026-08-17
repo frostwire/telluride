@@ -43,7 +43,6 @@ fi
 ${PIP_CMD} cache purge
 ${PIP_CMD} cache info
 ${PIP_CMD} ${PIP_OPTIONS} pip
-${PIP_CMD} ${PIP_OPTIONS} astroid
 ${PIP_CMD} ${PIP_OPTIONS} pylint
 ${PIP_CMD} ${PIP_OPTIONS} yt_dlp
 ${PIP_CMD} ${PIP_OPTIONS} ${PYINSTALLER_PACKAGE}

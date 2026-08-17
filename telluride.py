@@ -19,13 +19,22 @@ limitations under the License.
 '''
 # python path imports
 from datetime import datetime
+from urllib.parse import urlparse, urlunparse
 import argparse
 import json
 import os
 import sys
 import yt_dlp
+from yt_dlp.utils import YoutubeDLError
 
 BUILD = 46
+
+YOUTUBE_CONTENT_PATHS = (
+    '/videos', '/streams', '/shorts', '/playlist', '/watch', '/live')
+YOUTUBE_TAB_IDS = frozenset({
+    'videos', 'streams', 'shorts', 'live', 'playlists', 'community',
+    'featured', 'releases', 'podcasts', 'about'
+})
 
 
 def welcome():
@@ -71,6 +80,141 @@ def prepare_options_parser(parser):
         help="The URL of the page that hosts the video you need to backup locally")
 
 
+def base_ydl_opts(quiet=False):
+    '''
+    Shared yt-dlp options. Keep keys stable for FrostWire parsers.
+    '''
+    return {
+        'nocheckcertificate': True,
+        'quiet': quiet,
+        'restrictfilenames': True,
+        'trim_file_name': 200,
+        'no_color': True,
+    }
+
+
+def normalize_youtube_channel_url(page_url):
+    '''
+    Point bare YouTube channel URLs at the Videos tab.
+    Keeps query/fragment intact so ?si=... does not break the path.
+    '''
+    if 'youtube.com' not in page_url.lower():
+        return page_url
+    parsed = urlparse(page_url)
+    path = parsed.path or ''
+    if any(suffix in path.lower() for suffix in YOUTUBE_CONTENT_PATHS):
+        return page_url
+    new_path = path.rstrip('/') + '/videos'
+    return urlunparse((parsed.scheme, parsed.netloc, new_path,
+                       parsed.params, parsed.query, parsed.fragment))
+
+
+def emit_json(payload):
+    '''
+    Print JSON the way FrostWire's TellurideParser expects: a '{' somewhere
+    on stdout after the welcome banner.
+    '''
+    print(json.dumps(payload, indent=2, default=str))
+
+
+def fail(message):
+    '''
+    Print an ERROR: line so TellurideParser.onError fires, then exit.
+    '''
+    text = str(message).strip()
+    if not text.startswith('ERROR:'):
+        text = f'ERROR: {text}'
+    print(text)
+    sys.exit(1)
+
+
+def playlist_entry(entry):
+    '''
+    Map one yt-dlp flat entry to the TellurideJSONPlaylistEntry shape.
+    '''
+    if not entry:
+        return None
+    entry_id = entry.get('id') or ''
+    if entry_id in YOUTUBE_TAB_IDS:
+        return None
+    url = entry.get('url') or entry.get('webpage_url') or ''
+    if not url and not entry_id:
+        return None
+    data = {
+        'id': entry_id,
+        'title': entry.get('title', ''),
+        'url': url,
+        'webpage_url': entry.get('webpage_url') or url,
+    }
+    for field in ('thumbnail', 'duration', 'upload_date', 'view_count'):
+        if entry.get(field) is not None:
+            data[field] = entry.get(field)
+    description = entry.get('description')
+    if description:
+        data['description'] = description[:200]
+    return data
+
+
+def extract_playlist(page_url):
+    '''
+    Flat-extract up to 50 playlist/channel entries as JSON.
+    '''
+    page_url = normalize_youtube_channel_url(page_url)
+    opts = base_ydl_opts(quiet=True)
+    opts['extract_flat'] = True
+    opts['playlist_items'] = '1-50'
+    opts['ignoreerrors'] = True
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(page_url, download=False)
+    if not info:
+        fail('Could not extract playlist metadata')
+    raw_entries = info.get('entries')
+    if raw_entries is None:
+        raw_entries = [info]
+    entries = []
+    for entry in raw_entries:
+        mapped = playlist_entry(entry)
+        if mapped:
+            entries.append(mapped)
+    emit_json({
+        'type': 'playlist',
+        'title': info.get('title', ''),
+        'extractor': info.get('extractor_key') or info.get('extractor', ''),
+        'entries': entries,
+    })
+
+
+def extract_meta(page_url):
+    '''
+    Dump sanitized yt-dlp metadata JSON for a single video.
+    '''
+    opts = base_ydl_opts(quiet=True)
+    opts['format'] = 'bestaudio/best'
+    opts['noplaylist'] = True
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(page_url, download=False)
+        if not info:
+            fail('Could not extract video metadata')
+        emit_json(ydl.sanitize_info(info))
+
+
+def download_media(page_url, audio_only):
+    '''
+    Download the media at page_url, optionally extracting audio as mp3.
+    '''
+    opts = base_ydl_opts(quiet=False)
+    if audio_only:
+        print("Audio-only download.")
+        opts['format'] = 'bestaudio/best'
+        opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        ydl.download([page_url])
+
+
 def main():
     '''
     Main function
@@ -89,64 +233,16 @@ def main():
         print('Please pass a video page URL or "--help" for instructions\n')
         sys.exit(1)
 
-    yt_dlp_opts = {
-        'nocheckcertificate': True,
-        'quiet': False,
-        'restrictfilenames': True,
-        'trim_file_name': 200
-    }
-    if playlist:
-        yt_dlp_opts['quiet'] = True
-        yt_dlp_opts['extract_flat'] = True
-        yt_dlp_opts['playlist_items'] = '1-50'
-        if 'youtube.com/' in page_url and not any(suffix in page_url for suffix in ['/videos', '/streams', '/shorts', '/playlist', '/watch']):
-            if page_url.endswith('/'):
-                page_url = page_url[:-1]
-            page_url += '/videos'
-        with yt_dlp.YoutubeDL(yt_dlp_opts) as ydl:
-            info_dict = ydl.extract_info(page_url, download=False)
-            entries = []
-            for entry in info_dict.get('entries', []):
-                entry_data = {
-                    'id': entry.get('id', ''),
-                    'title': entry.get('title', ''),
-                    'url': entry.get('url') or entry.get('webpage_url', ''),
-                }
-                for field in ('thumbnail', 'duration', 'upload_date', 'view_count'):
-                    if entry.get(field) is not None:
-                        entry_data[field] = entry.get(field)
-                description = entry.get('description')
-                if description:
-                    entry_data['description'] = description[:200]
-                entries.append(entry_data)
-            result = {
-                'type': 'playlist',
-                'title': info_dict.get('title', ''),
-                'extractor': info_dict.get('extractor_key', ''),
-                'entries': entries,
-            }
-            print(json.dumps(result, indent=2))
+    try:
+        if playlist:
+            extract_playlist(page_url)
             sys.exit(0)
-
-    if meta_only:
-        yt_dlp_opts['quiet'] = True
-        yt_dlp_opts['format'] = 'bestaudio/best'
-        with yt_dlp.YoutubeDL(yt_dlp_opts) as ydl:
-            info_dict = ydl.extract_info(page_url, download=False)
-            print(json.dumps(info_dict, indent=2))
+        if meta_only:
+            extract_meta(page_url)
             sys.exit(0)
-
-    if audio_only:
-        print("Audio-only download.")
-        yt_dlp_opts['format'] = 'bestaudio/best'
-        yt_dlp_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
-
-    with yt_dlp.YoutubeDL(yt_dlp_opts) as ydl:
-        ydl.download([page_url])
+        download_media(page_url, audio_only)
+    except YoutubeDLError as err:
+        fail(err)
 
 
 if __name__ == '__main__':

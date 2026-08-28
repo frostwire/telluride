@@ -27,10 +27,11 @@ import sys
 import yt_dlp
 from yt_dlp.utils import YoutubeDLError
 
-BUILD = 46
+BUILD = 47
 
-YOUTUBE_CONTENT_PATHS = (
-    '/videos', '/streams', '/shorts', '/playlist', '/watch', '/live')
+YOUTUBE_CONTENT_SEGMENTS = frozenset({
+    'videos', 'streams', 'shorts', 'playlist', 'watch', 'live'
+})
 YOUTUBE_TAB_IDS = frozenset({
     'videos', 'streams', 'shorts', 'live', 'playlists', 'community',
     'featured', 'releases', 'podcasts', 'about'
@@ -102,7 +103,8 @@ def normalize_youtube_channel_url(page_url):
         return page_url
     parsed = urlparse(page_url)
     path = parsed.path or ''
-    if any(suffix in path.lower() for suffix in YOUTUBE_CONTENT_PATHS):
+    segments = [segment.lower() for segment in path.split('/') if segment]
+    if any(segment in YOUTUBE_CONTENT_SEGMENTS for segment in segments):
         return page_url
     new_path = path.rstrip('/') + '/videos'
     return urlunparse((parsed.scheme, parsed.netloc, new_path,

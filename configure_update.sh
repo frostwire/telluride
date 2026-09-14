@@ -23,7 +23,7 @@ PYINSTALLER_PACKAGE='pyinstaller'
 PIP_OPTIONS='install --upgrade --no-cache-dir'
 source ./common.sh
 
-if [ isdocker == ${FALSE} ] && [ isubuntu == ${TRUE} ]
+if ! isdocker && isubuntu
 then
   echo "Don't run this on a host ubuntu, please use the Docker image so we make the resulting binaries will be compatible with as many linux distributions as possible"
   exit 1
@@ -37,6 +37,23 @@ then
   # trying to set aliases or fixing paths in windows 10 is a nightmare because they have
   # a Microsoft Store launcher to install python from there linked to 'python3'
   PIP_CMD='python -m pip'
+fi
+
+# PEP 668 (Debian/Ubuntu): system pythons are "externally managed" and pip
+# refuses system-wide installs without --break-system-packages.
+# Detect the EXTERNALLY-MANAGED marker for the interpreter pip will use and
+# append the flag only when needed (e.g. host Ubuntu; Docker image compiles
+# its own Python so the marker is absent there).
+PY_FOR_PIP='python3'
+if iswindows;
+then
+  PY_FOR_PIP='python'
+fi
+EXTERNALLY_MANAGED_MARKER=$(${PY_FOR_PIP} -c 'import sysconfig, os; print(os.path.join(sysconfig.get_path("stdlib"), "EXTERNALLY-MANAGED"))' 2>/dev/null)
+if [ -n "${EXTERNALLY_MANAGED_MARKER}" ] && [ -f "${EXTERNALLY_MANAGED_MARKER}" ];
+then
+  echo "Detected externally managed Python (${EXTERNALLY_MANAGED_MARKER}), adding --break-system-packages to pip options"
+  PIP_OPTIONS="${PIP_OPTIONS} --break-system-packages"
 fi
 
 

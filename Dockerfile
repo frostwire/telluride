@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND noninteractive
-ARG PYTHON_VERSION_MAJOR=3.13
-ARG PYTHON_VERSION=3.13.7
+ARG PYTHON_VERSION_MAJOR=3.14
+ARG PYTHON_VERSION=3.14.8
 RUN apt update -y
 RUN apt upgrade -y
 RUN apt install libssl3 -y

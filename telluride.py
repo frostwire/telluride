@@ -27,7 +27,7 @@ import sys
 import yt_dlp
 from yt_dlp.utils import YoutubeDLError
 
-BUILD = 47
+BUILD = 48
 
 YOUTUBE_CONTENT_SEGMENTS = frozenset({
     'videos', 'streams', 'shorts', 'playlist', 'watch', 'live'

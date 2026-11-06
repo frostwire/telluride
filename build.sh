@@ -130,7 +130,7 @@ then
     # which fail notarization.
     rm -rf telluride_macos.${ARCH}.dir telluride_macos.${ARCH} telluride_macos.${ARCH}.zip
     mv dist/telluride telluride_macos.${ARCH}.dir
-    ./sign.sh
+    ./sign.sh "${ARCH}"
     # The distributed file is telluride_macos.<arch> alone. The zip
     # (ditto keeps the executable bit) is the release asset; the .dir
     # folder stays here only so sign.sh can re-embed it.

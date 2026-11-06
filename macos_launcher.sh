@@ -33,7 +33,10 @@ fi
 
 # The launcher must run wherever the bundle runs: take the bundle's minimum
 # macOS version. Without it cc targets the build Mac's own macOS version.
-MIN_OS=$(vtool -show-build "${BUNDLE_DIR}/telluride" | awk '/minos/{print $2; exit}')
+# Binaries for macOS 11+ record it as LC_BUILD_VERSION "minos"; older
+# targets (x86_64 Python builds for 10.13) as LC_VERSION_MIN_MACOSX
+# "version".
+MIN_OS=$(vtool -show-build "${BUNDLE_DIR}/telluride" | awk '$1 == "minos" || $1 == "version" {print $2; exit}')
 if [ -z "${MIN_OS}" ]; then
   echo "macos_launcher.sh: ERROR - cannot read the minimum macOS version of ${BUNDLE_DIR}/telluride"
   exit 1

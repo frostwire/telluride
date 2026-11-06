@@ -130,6 +130,11 @@ then
     # to it, so the visible artifact stays a single executable
     # file while startup stays ~0.2s instead of the ~8s a
     # --onefile binary pays on macOS.
+    # Remove any previous build first: mv into an existing
+    # .dir folder would nest/merge into it and leave stale
+    # (e.g. CI-artifact, symlink-dereferenced) framework
+    # copies behind, which fail notarization.
+    rm -rf telluride_macos.${ARCH}.dir telluride_macos.${ARCH} telluride_macos.${ARCH}.zip
     mv dist/telluride telluride_macos.${ARCH}.dir
     cc -O2 -arch ${ARCH} -o telluride_macos.${ARCH} launcher.c
     ./sign.sh

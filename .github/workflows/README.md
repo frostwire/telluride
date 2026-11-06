@@ -61,8 +61,11 @@ validation and startup is ~0.2s. A native launcher (`launcher.c`) is the
 `telluride_macos.<arch>` file FrostWire looks for; it execs the bundle
 in `telluride_macos.<arch>.dir/`. The builders verify with `file` that
 both the launcher and the bundle executable are the expected
-architecture and ship them as a `ditto` zip (`telluride_macos.<arch>.zip`,
-containing the launcher file and the `.dir` folder; unzip it into
-`FrostWire.app/Contents/MacOS/`). No Developer ID identity is available
-on the runners, so the binaries are ad-hoc signed; the maintainer
-re-signs/notarizes them after download (see `sign.sh`).
+architecture, and put the launcher file and its `.dir` folder directly
+into the workflow artifact, so downloading the artifact and unzipping
+it once gives the final product at the top level (no zip-in-a-zip).
+No Developer ID identity is available on the runners, so the binaries
+are only ad-hoc signed: after downloading, run `xattr -cr` on them (or
+re-sign/notarize them locally with `sign.sh`) before running, as
+Gatekeeper/AMFI blocks quarantined ad-hoc binaries even with the
+Privacy & Security override.

@@ -51,8 +51,11 @@ jobs:
         # telluride_macos.x86_64 file FrostWire looks for and execs
         # the bundle in telluride_macos.x86_64.dir/. No Developer ID
         # identity is available on the runner, so PyInstaller ad-hoc
-        # signs the nested binaries and cc leaves the launcher
-        # unsigned; the maintainer re-signs/notarizes after download.
+        # signs the nested binaries; the launcher is ad-hoc signed
+        # below so it is not left unsigned (unsigned/quarantined
+        # binaries are killed by Gatekeeper/AMFI even with the
+        # Privacy & Security override). For a Developer ID signed,
+        # notarized binary, run sign.sh on a machine with the cert.
         run: |
           pyinstaller --onedir --noupx \
             --osx-bundle-identifier com.frostwire.Telluride \
@@ -60,22 +63,25 @@ jobs:
             telluride.py
           mv dist/telluride telluride_macos.x86_64.dir
           cc -O2 -arch x86_64 -o telluride_macos.x86_64 launcher.c
+          codesign --force --sign - --options runtime --entitlements Entitlements.plist telluride_macos.x86_64
           file telluride_macos.x86_64
           file telluride_macos.x86_64 | grep -q "x86_64"
           file telluride_macos.x86_64.dir/telluride | grep -q "x86_64"
-          mkdir -p telluride_macos.x86_64.staging
-          cp -R telluride_macos.x86_64 telluride_macos.x86_64.dir telluride_macos.x86_64.staging/
-          ditto -c -k --sequesterRsrc telluride_macos.x86_64.staging telluride_macos.x86_64.zip
-          rm -rf telluride_macos.x86_64.staging
 
       - name: Organize artifact
+        # Put the launcher file and its .dir folder directly in the
+        # artifact folder: upload-artifact zips them, so downloading
+        # the artifact and unzipping it once gives the final product
+        # (telluride_macos.x86_64 + telluride_macos.x86_64.dir/) at
+        # the top level, ready to sign locally with sign.sh. Do not
+        # ditto-zip them first, or the artifact is a zip in a zip.
         run: |
           TAG_NAME="${{ github.ref_name }}"
           if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "${{ github.ref }}" ]; then
             TAG_NAME="manual-build"
           fi
           mkdir -p "$TAG_NAME"
-          mv telluride_macos.x86_64.zip "$TAG_NAME/"
+          mv telluride_macos.x86_64 telluride_macos.x86_64.dir "$TAG_NAME/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

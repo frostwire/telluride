@@ -45,18 +45,26 @@ jobs:
         # --onedir, not --onefile: --onefile re-extracts into a fresh
         # random _MEIxxxxxx folder and macOS re-validates every Mach-O
         # on every launch (~8s). --onedir ships a pre-signed folder
-        # and starts in ~0.2s. No Developer ID identity is available
-        # on the runner, so PyInstaller ad-hoc signs the nested
-        # binaries; the maintainer re-signs/notarizes after download.
+        # and starts in ~0.2s. A native launcher (launcher.c) is the
+        # telluride_macos.arm64 file FrostWire looks for and execs
+        # the bundle in telluride_macos.arm64.dir/. No Developer ID
+        # identity is available on the runner, so PyInstaller ad-hoc
+        # signs the nested binaries and cc leaves the launcher
+        # unsigned; the maintainer re-signs/notarizes after download.
         run: |
           pyinstaller --onedir --noupx \
             --osx-bundle-identifier com.frostwire.Telluride \
             --osx-entitlements-file Entitlements.plist \
             telluride.py
-          mv dist/telluride telluride_macos.arm64
-          file telluride_macos.arm64/telluride
-          file telluride_macos.arm64/telluride | grep -q "arm64"
-          ditto -c -k --sequesterRsrc --keepParent telluride_macos.arm64 telluride_macos.arm64.zip
+          mv dist/telluride telluride_macos.arm64.dir
+          cc -O2 -arch arm64 -o telluride_macos.arm64 launcher.c
+          file telluride_macos.arm64
+          file telluride_macos.arm64 | grep -q "arm64"
+          file telluride_macos.arm64.dir/telluride | grep -q "arm64"
+          mkdir -p telluride_macos.arm64.staging
+          cp -R telluride_macos.arm64 telluride_macos.arm64.dir telluride_macos.arm64.staging/
+          ditto -c -k --sequesterRsrc telluride_macos.arm64.staging telluride_macos.arm64.zip
+          rm -rf telluride_macos.arm64.staging
 
       - name: Organize artifact
         run: |

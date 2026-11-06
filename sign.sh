@@ -11,10 +11,12 @@ if [ ${ARCH} == "i386" ]; then
   ARCH=x86_64
 fi
 
-# macOS builds are PyInstaller --onedir folders:
-# telluride_macos.<arch>/telluride (x86_64 on Intel, arm64 on Apple Silicon).
-# A legacy --onefile build is a single file with the same name.
+# macOS builds are a native launcher file telluride_macos.<arch>
+# (x86_64 on Intel, arm64 on Apple Silicon) plus its PyInstaller
+# --onedir bundle in telluride_macos.<arch>.dir/. A legacy
+# --onefile build is a single file with the launcher's name.
 TARGET="telluride_macos.${ARCH}"
+BUNDLE_DIR="${TARGET}.dir"
 
 if [ ! -e "${TARGET}" ]; then
   echo "telluride/sign.sh: ERROR - ${TARGET} not found, run build.sh first"
@@ -31,34 +33,53 @@ sign_one() {
            "$1"
 }
 
-echo "Signing ${TARGET}..."
-if [ -d "${TARGET}" ]; then
-  # A plain folder is not a .app bundle, so `codesign --deep` on the
-  # folder itself fails ("bundle format unrecognized"). Sign every
-  # Mach-O inside it instead: the main executable and the nested
-  # dylibs/.so files under _internal/. PyInstaller already signs
-  # them when it can (build.sh passes --codesign-identity when the
-  # Developer ID identity is in the keychain), so this re-sign is
-  # idempotent on the maintainer's Mac and converts ad-hoc signatures
-  # to Developer ID on machines where PyInstaller could not sign.
+sign_mach_o_tree() {
+  # A plain folder is not a .app bundle, so `codesign --deep` on
+  # the folder itself fails ("bundle format unrecognized"). Sign
+  # every Mach-O inside it instead: the main executable and the
+  # nested dylibs/.so files under _internal/. PyInstaller already
+  # signs them when it can (build.sh passes --codesign-identity
+  # when the Developer ID identity is in the keychain), so this
+  # re-sign is idempotent on the maintainer's Mac and converts
+  # ad-hoc signatures to Developer ID on machines where
+  # PyInstaller could not sign.
   while IFS= read -r -d '' file; do
     if file "$file" | grep -q "Mach-O"; then
       sign_one "$file"
     fi
-  done < <(find "${TARGET}" -type f -print0)
-else
-  sign_one "${TARGET}"
+  done < <(find "$1" -type f -print0)
+}
+
+echo "Signing ${TARGET} (launcher) and ${BUNDLE_DIR} (bundle)..."
+sign_one "${TARGET}"
+if [ -d "${BUNDLE_DIR}" ]; then
+  sign_mach_o_tree "${BUNDLE_DIR}"
+elif [ -d "${TARGET}" ]; then
+  # Legacy layout where the bundle itself was the target folder.
+  sign_mach_o_tree "${TARGET}"
 fi
 
 echo "Verifying signature..."
-codesign -vvv "${TARGET}/telluride" 2>/dev/null || codesign -vvv "${TARGET}"
+codesign -vvv "${TARGET}"
+if [ -f "${BUNDLE_DIR}/telluride" ]; then
+  codesign -vvv "${BUNDLE_DIR}/telluride"
+fi
 
 echo "Successfully signed ${TARGET}"
 
 # This tool must be symlinked from our private repo given it includes credentials.
-# It ditto-zips the target (folder or file) and submits it to notarytool.
-if [ -f ./notarizeMacOSApp.sh ]
-then
+# It ditto-zips the path it is given and submits it to notarytool, so
+# stage the launcher and its bundle folder into one directory and
+# submit that; the notarization then covers every Mach-O in both.
+if [ -f ./notarizeMacOSApp.sh ] && [ -d "${BUNDLE_DIR}" ]; then
+  echo "Submitting for notarization..."
+  STAGE="${TARGET}.staging"
+  rm -rf "${STAGE}"
+  mkdir -p "${STAGE}"
+  cp -R "${TARGET}" "${BUNDLE_DIR}" "${STAGE}/"
+  ./notarizeMacOSApp.sh "${STAGE}" com.frostwire.Telluride
+  rm -rf "${STAGE}"
+elif [ -f ./notarizeMacOSApp.sh ]; then
   echo "Submitting for notarization..."
   ./notarizeMacOSApp.sh "${TARGET}" com.frostwire.Telluride
 else

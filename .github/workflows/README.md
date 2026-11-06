@@ -57,9 +57,12 @@ macOS uses `--onedir` instead of `--onefile` because a `--onefile` binary
 re-extracts into a fresh random temp folder on every launch and macOS
 re-validates every Mach-O it loads from that new path (~8s per launch).
 The `--onedir` folder is already signed on disk, so macOS caches the
-validation and startup is ~0.2s. The builders verify with `file` that the
-produced executable is the expected architecture and ship it as a
-`ditto` zip (`telluride_macos.<arch>.zip`, containing the
-`telluride_macos.<arch>/` folder). No Developer ID identity is available
+validation and startup is ~0.2s. A native launcher (`launcher.c`) is the
+`telluride_macos.<arch>` file FrostWire looks for; it execs the bundle
+in `telluride_macos.<arch>.dir/`. The builders verify with `file` that
+both the launcher and the bundle executable are the expected
+architecture and ship them as a `ditto` zip (`telluride_macos.<arch>.zip`,
+containing the launcher file and the `.dir` folder; unzip it into
+`FrostWire.app/Contents/MacOS/`). No Developer ID identity is available
 on the runners, so the binaries are ad-hoc signed; the maintainer
 re-signs/notarizes them after download (see `sign.sh`).

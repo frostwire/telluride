@@ -74,7 +74,11 @@ fi
 # kept for a single-file binary.
 # --onedir ships a folder whose binaries are already signed on
 # disk, so macOS caches the validation and startup is ~0.2s,
-# the same as running `python3 telluride.py`.
+# the same as running `python3 telluride.py`. A tiny native
+# launcher (launcher.c) is placed at the classic
+# telluride_macos.<arch> path and execs that folder, so
+# FrostWire and the installers keep finding a single
+# executable file exactly where they always did.
 PYINSTALLER_MODE="--onefile"
 EXTRA_FLAGS=
 if ismac
@@ -117,15 +121,33 @@ then
     if [ ${ARCH} == "i386" ]; then
         ARCH=x86_64
     fi
-    # --onedir output is a folder: telluride_macos.<arch>/telluride
-    # (x86_64 on Intel Macs, arm64 on Apple Silicon, decided by the
-    # machine this script runs on).
-    mv dist/telluride telluride_macos.${ARCH}
+    # --onedir output is a folder; keep it as
+    # telluride_macos.<arch>.dir/ (x86_64 on Intel Macs, arm64 on
+    # Apple Silicon, decided by the machine this script runs on)
+    # and put a native launcher at the path FrostWire and the
+    # installers have always looked for: telluride_macos.<arch>
+    # (see launcher.c). The launcher just execs the bundle next
+    # to it, so the visible artifact stays a single executable
+    # file while startup stays ~0.2s instead of the ~8s a
+    # --onefile binary pays on macOS.
+    mv dist/telluride telluride_macos.${ARCH}.dir
+    cc -O2 -arch ${ARCH} -o telluride_macos.${ARCH} launcher.c
     ./sign.sh
-    # ditto (not zip) preserves executable bits and macOS metadata,
-    # which plain zip can corrupt for Mach-O binaries.
-    ditto -c -k --sequesterRsrc --keepParent telluride_macos.${ARCH} telluride_macos.${ARCH}.zip
-    echo "Built telluride_macos.${ARCH}/ (executable: telluride_macos.${ARCH}/telluride) and telluride_macos.${ARCH}.zip"
+    # ditto (not zip) preserves executable bits, symlinks (the
+    # Python.framework layout depends on them; plain zip follows
+    # them and breaks the code signature) and macOS metadata.
+    # ditto cannot archive multiple sources, so stage both the
+    # launcher file and its .dir folder into one directory and
+    # archive its contents at the zip root; unzip the result
+    # into FrostWire.app/Contents/MacOS/ (or the telluride/
+    # folder when running from source).
+    STAGE="telluride_macos.${ARCH}.staging"
+    rm -rf "${STAGE}"
+    mkdir -p "${STAGE}"
+    cp -R telluride_macos.${ARCH} telluride_macos.${ARCH}.dir "${STAGE}/"
+    ditto -c -k --sequesterRsrc "${STAGE}" telluride_macos.${ARCH}.zip
+    rm -rf "${STAGE}"
+    echo "Built telluride_macos.${ARCH} (launcher) + telluride_macos.${ARCH}.dir/ (bundle) and telluride_macos.${ARCH}.zip"
   elif iswindows
   then
     mv dist/telluride.exe .

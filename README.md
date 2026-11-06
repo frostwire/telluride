@@ -36,14 +36,17 @@ You should end up with a stand-alone executable for the platform you are on:
 
  - telluride.exe (Windows, PyInstaller `--onefile`)
  - telluride_linux.<arch> (Linux, PyInstaller `--onefile`)
- - telluride_macos.<arch>/telluride (macOS x86_64 and arm64, PyInstaller `--onedir` folder, also zipped as `telluride_macos.<arch>.zip`)
+ - telluride_macos.<arch> (macOS x86_64 and arm64: a native launcher, `launcher.c`, plus its PyInstaller `--onedir` bundle in `telluride_macos.<arch>.dir/`; both zipped as `telluride_macos.<arch>.zip`)
 
 macOS uses `--onedir` instead of `--onefile` because a `--onefile` binary
 re-extracts into a fresh random temp folder on every launch and macOS
 re-validates every Mach-O it loads from that new path (~8s per launch for
 telluride). The `--onedir` folder is already signed on disk, so macOS
-caches the validation and the binary starts in ~0.2s. Linux/Windows keep
-`--onefile` (a single file) since they have no such per-file trust check.
+caches the validation and the binary starts in ~0.2s. The launcher is the
+`telluride_macos.<arch>` file FrostWire looks for; it just execs the
+bundle next to it, so FrostWire and the installers keep finding a single
+executable at the classic path. Linux/Windows keep `--onefile` (a single
+file) since they have no such per-file trust check.
 
 
 ## Requirements

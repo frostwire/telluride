@@ -16,6 +16,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify runner architecture
+        # Fail fast if the runner label ever stops meaning Intel:
+        # building on an Apple Silicon runner silently produces an
+        # arm64 binary that gets renamed telluride_macos.x86_64 and
+        # then fails on Intel Macs with "Bad CPU type in executable"
+        # (this is what the old macos-14 runner did).
+        run: |
+          uname -m
+          test "$(uname -m)" = "x86_64"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

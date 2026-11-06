@@ -5,6 +5,8 @@ build 48 - oct/28/2026
  - pyinstaller 6.22.1 -> 6.22.3, pyinstaller-hooks-contrib 2026.6 -> 2026.8
  - configure_update.sh works inside the Docker image and with PEP 668 system Pythons
  - python 3.14.8 (macOS build and the Linux Docker image)
+ - fix:macOS now starts in ~0.25s instead of ~8.7s on every invocation: PyInstaller --onefile re-extracted into a fresh temp folder and macOS re-validated every Mach-O each time, so macOS now ships a native launcher (telluride_macos.<arch>, launcher.c) that execs a --onedir bundle (telluride_macos.<arch>.dir/) next to it; Windows/Linux keep --onefile and were already fast
+ - fix:macOS CI builds now run on native runners (macos-15-intel for x86_64, macos-15 for arm64) with the architecture asserted at build time: the previous telluride_macos.x86_64 was actually an arm64 binary (built on the Apple Silicon macos-14 runner) and failed on Intel Macs with "Bad CPU type in executable"
 
 build 47 - aug/28/2026
  - yt-dlp 2026.7.4 -> 2026.8.19 (fixes YouTube HTTP 403 from rejected ANDROID_VR URLs)

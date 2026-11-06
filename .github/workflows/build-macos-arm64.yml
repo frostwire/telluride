@@ -44,34 +44,47 @@ jobs:
       - name: Build with PyInstaller
         # --onedir, not --onefile: --onefile re-extracts into a fresh
         # random _MEIxxxxxx folder and macOS re-validates every Mach-O
-        # on every launch (~8s). --onedir ships a pre-signed folder
-        # and starts in ~0.2s. A native launcher (launcher.c) is the
-        # telluride_macos.arm64 file FrostWire looks for and execs
-        # the bundle in telluride_macos.arm64.dir/. No Developer ID
-        # identity is available on the runner, so PyInstaller ad-hoc
-        # signs the nested binaries; the launcher is ad-hoc signed
-        # below so it is not left unsigned (unsigned/quarantined
-        # binaries are killed by Gatekeeper/AMFI even with the
-        # Privacy & Security override). For a Developer ID signed,
-        # notarized binary, run sign.sh on a machine with the cert.
+        # on every launch (~8s). The --onedir folder is embedded in the
+        # single-file native launcher telluride_macos.arm64
+        # (launcher.c, macos_launcher.sh), the file FrostWire looks
+        # for: its first run unpacks the folder once into
+        # ~/Library/Caches/com.frostwire.Telluride/ and later runs
+        # start in ~0.1s. No Developer ID identity is available on the
+        # runner, so PyInstaller ad-hoc signs the nested binaries and
+        # the launcher is ad-hoc signed below (unsigned binaries are
+        # killed by Gatekeeper/AMFI). For a Developer ID signed,
+        # notarized binary, run sign.sh on a machine with the cert: it
+        # re-signs the folder, re-embeds it and signs the launcher.
         run: |
           pyinstaller --onedir --noupx \
             --osx-bundle-identifier com.frostwire.Telluride \
             --osx-entitlements-file Entitlements.plist \
             telluride.py
           mv dist/telluride telluride_macos.arm64.dir
-          cc -O2 -arch arm64 -o telluride_macos.arm64 launcher.c
+          ./macos_launcher.sh arm64
           codesign --force --sign - --options runtime --entitlements Entitlements.plist telluride_macos.arm64
           file telluride_macos.arm64
           file telluride_macos.arm64 | grep -q "arm64"
           file telluride_macos.arm64.dir/telluride | grep -q "arm64"
 
+      - name: Smoke test the single file
+        # Run the launcher alone, away from its .dir folder, with an
+        # empty cache: the first run must unpack and start telluride.
+        run: |
+          mkdir -p smoke/home
+          cp telluride_macos.arm64 smoke/
+          cd smoke
+          HOME="$PWD/home" ./telluride_macos.arm64 --version | grep -q "Build"
+          HOME="$PWD/home" ./telluride_macos.arm64 --version | grep -q "Build"
+          ls home/Library/Caches/com.frostwire.Telluride/
+
       - name: Organize artifact
         # Put the launcher file and its .dir folder directly in the
         # artifact folder: upload-artifact zips them, so downloading
-        # the artifact and unzipping it once gives the final product
-        # (telluride_macos.arm64 + telluride_macos.arm64.dir/) at
-        # the top level, ready to sign locally with sign.sh. Do not
+        # the artifact and unzipping it once gives the single-file
+        # product telluride_macos.arm64 (ad-hoc signed) plus the
+        # telluride_macos.arm64.dir/ folder it embeds, which sign.sh
+        # needs to re-sign and re-embed with the Developer ID. Do not
         # ditto-zip them first, or the artifact is a zip in a zip.
         run: |
           TAG_NAME="${{ github.ref_name }}"

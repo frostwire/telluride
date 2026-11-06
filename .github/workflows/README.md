@@ -7,8 +7,8 @@ This directory contains GitHub Actions workflows for building Telluride binaries
 1. **build-windows-x86_64.yml** - Builds `telluride.exe` for Windows x86_64 (`--onefile`)
 2. **build-linux-x86_64.yml** - Builds `telluride_linux.x86_64` for Linux x86_64 (`--onefile`)
 3. **build-linux-arm64.yml** - Builds `telluride_linux.arm64` for Linux ARM64 (`--onefile`)
-4. **build-macos-arm64.yml** - Builds `telluride_macos.arm64.zip` for macOS ARM64 (Apple Silicon, `--onedir` folder)
-5. **build-macos-x86_64.yml** - Builds `telluride_macos.x86_64.zip` for macOS x86_64 (Intel, `--onedir` folder)
+4. **build-macos-arm64.yml** - Builds the single file `telluride_macos.arm64` for macOS ARM64 (Apple Silicon, `--onedir` folder embedded)
+5. **build-macos-x86_64.yml** - Builds the single file `telluride_macos.x86_64` for macOS x86_64 (Intel, `--onedir` folder embedded)
 
 ## Triggering Workflows
 
@@ -43,7 +43,7 @@ Each workflow:
 - Installs dependencies (pip, astroid, pylint, yt_dlp, pyinstaller)
 - Runs pylint for code quality checks
 - Builds with PyInstaller (`--onefile --noupx` on Windows/Linux; `--onedir --noupx` on macOS, see below)
-- Uploads the resulting binary (macOS: `ditto` zip of the `--onedir` folder) as an artifact
+- Uploads the resulting binary as an artifact (macOS: the single-file launcher plus the `--onedir` folder it embeds, for re-signing)
 
 ## Platform-Specific Notes
 
@@ -53,17 +53,19 @@ Each workflow:
 - **macOS ARM64**: Uses `macos-15` runner (Apple Silicon), so the binary is natively arm64
 - **macOS x86_64**: Uses `macos-15-intel` runner (Intel), so the binary is natively x86_64
 
-macOS uses `--onedir` instead of `--onefile` because a `--onefile` binary
-re-extracts into a fresh random temp folder on every launch and macOS
-re-validates every Mach-O it loads from that new path (~8s per launch).
-The `--onedir` folder is already signed on disk, so macOS caches the
-validation and startup is ~0.2s. A native launcher (`launcher.c`) is the
-`telluride_macos.<arch>` file FrostWire looks for; it execs the bundle
-in `telluride_macos.<arch>.dir/`. The builders verify with `file` that
-both the launcher and the bundle executable are the expected
-architecture, and put the launcher file and its `.dir` folder directly
-into the workflow artifact, so downloading the artifact and unzipping
-it once gives the final product at the top level (no zip-in-a-zip).
+macOS does not use `--onefile` because a `--onefile` binary re-extracts
+into a fresh random temp folder on every launch and macOS re-validates
+every Mach-O it loads from that new path (~8s per launch). The builders
+build `--onedir` and embed that folder in the native launcher
+(`launcher.c`, `macos_launcher.sh`), the single file
+`telluride_macos.<arch>` FrostWire looks for. Its first run unpacks the
+folder once into `~/Library/Caches/com.frostwire.Telluride/` and later
+runs start in ~0.15s. The builders verify with `file` that the launcher
+and the bundle executable are the expected architecture, smoke-test the
+launcher alone with an empty cache, and put the launcher file and its
+`.dir` folder directly into the workflow artifact (no zip-in-a-zip).
+The `.dir` folder is only there so `sign.sh` can re-sign it with the
+Developer ID and embed it again; the launcher alone is the product.
 No Developer ID identity is available on the runners, so the binaries
 are only ad-hoc signed: after downloading, run `xattr -cr` on them (or
 re-sign/notarize them locally with `sign.sh`) before running, as

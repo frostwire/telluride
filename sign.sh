@@ -44,6 +44,18 @@ sign_mach_o_tree() {
   # ad-hoc signatures to Developer ID on machines where
   # PyInstaller could not sign.
   while IFS= read -r -d '' file; do
+    # Skip the top-level copies inside a .framework bundle
+    # (Python.framework/Python, Versions/Current/Python): in a
+    # proper --onedir build those are symlinks (already excluded
+    # by -type f), but a GitHub Actions artifact zip dereferences
+    # them into regular files, and codesign rejects them with
+    # "bundle format is ambiguous". The real Mach-O at
+    # Versions/<version>/Python is signed instead.
+    case "$file" in
+      *.framework/Python|*.framework/Versions/Current/Python)
+        continue
+        ;;
+    esac
     if file "$file" | grep -q "Mach-O"; then
       sign_one "$file"
     fi

@@ -34,15 +34,15 @@ Top of `changelog.txt`: `build N - mon/dd/yyyy`, then ` - tool old -> new` lines
 
 ## 4. Build, sign, notarize (per machine)
 
-- `printf '\n' | ./build.sh` (it pauses after pylint). It moves the binary to `telluride_<os>.<arch>` (or `telluride.exe`), signs it (`sign.sh` / `sign.bat`) and on macOS submits it for notarization. Binaries are not tracked in git.
-- macOS notarization: `notarizeMacOSApp.sh` and `notarizationLog.sh` are symlinks into frostwire-tools, which hold the notarytool credentials (`notarytool-auth.sh`, never copied here). Check with `./notarizationLog.sh <submission id>` until `"status": "Accepted"`; then `spctl -a -vv -t install telluride_macos.<arch>` must say `Notarized Developer ID`. An empty submission id means the credentials weren't found.
-- Smoke-test the binary itself: `./telluride_<os>.<arch> -m <youtube url>` prints `Build N` and the title.
+- `printf '\n' | ./build.sh` (it pauses after pylint). Windows/Linux keep PyInstaller `--onefile` and it moves the binary to `telluride_<os>.<arch>` (or `telluride.exe`), signed with `sign.bat`. macOS uses `--onedir` instead (a `--onefile` binary re-extracts into a fresh temp folder and macOS re-validates every Mach-O on every launch, ~8s): it moves the folder to `telluride_macos.<arch>/`, signs the folder `--deep` with `sign.sh`, submits it for notarization, and `ditto`-zips it to `telluride_macos.<arch>.zip`. Binaries are not tracked in git.
+- macOS notarization: `notarizeMacOSApp.sh` and `notarizationLog.sh` are symlinks into frostwire-tools, which hold the notarytool credentials (`notarytool-auth.sh`, never copied here). Check with `./notarizationLog.sh <submission id>` until `"status": "Accepted"`; then `codesign -vvv telluride_macos.<arch>/telluride` must show `Developer ID Application: FrostWire, LLC` and `spctl` must say `Notarized Developer ID`. An empty submission id means the credentials weren't found.
+- Smoke-test the binary itself: `./telluride_<os>.<arch> -m <youtube url>` on Windows/Linux, `./telluride_macos.<arch>/telluride -m <youtube url>` on macOS; both print `Build N` and the title, and the macOS one should answer in well under a second once warmed up (a `--onefile` macOS build taking ~8s means the `--onedir` switch regressed).
 
 ## 5. Tag and release
 
 - `git tag -a telluride-build-N -m "Telluride build N" && git push origin telluride-build-N`, so other machines build the same commit.
 - `gh release create telluride-build-N --draft --verify-tag --title "Telluride Build N — <headline>" --notes-file <notes> <binaries…>`. Notes follow the previous release: what Telluride is, what changed for users, a tools table (old → new), usage examples, and the compare link `telluride-build-<previous published>...telluride-build-N`.
-- Other machines: `gh release upload telluride-build-N <binary>`. The asset names stay `telluride.exe`, `telluride_linux.arm64`, `telluride_linux.x86_64`, `telluride_macos.arm64`, `telluride_macos.x86_64`: FrostWire (`FrostWireUtils`) and its installers look the binary up by these names.
+- Other machines: `gh release upload telluride-build-N <binary>`. The asset names stay `telluride.exe`, `telluride_linux.arm64`, `telluride_linux.x86_64`; the macOS assets are now `telluride_macos.arm64.zip` and `telluride_macos.x86_64.zip`, each containing a `telluride_macos.<arch>/` folder whose executable is `telluride`. FrostWire (`FrostWireUtils.getTellurideLauncherFile()`) looks for that onedir executable first and falls back to the legacy single-file `telluride_macos.<arch>` for older installers; its installers unzip the macOS zip into `FrostWire.app/Contents/MacOS/`.
 - The maintainer publishes the draft once all five are attached.
 
 ## 6. FrostWire submodule

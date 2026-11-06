@@ -8,7 +8,8 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # Apple Silicon runner so the produced binary is really arm64.
+    runs-on: macos-15
 
     steps:
       - name: Checkout code
@@ -32,11 +33,21 @@ jobs:
           python3 -m pylint --max-line-length=350 telluride.py
 
       - name: Build with PyInstaller
+        # --onedir, not --onefile: --onefile re-extracts into a fresh
+        # random _MEIxxxxxx folder and macOS re-validates every Mach-O
+        # on every launch (~8s). --onedir ships a pre-signed folder
+        # and starts in ~0.2s. No Developer ID identity is available
+        # on the runner, so PyInstaller ad-hoc signs the nested
+        # binaries; the maintainer re-signs/notarizes after download.
         run: |
-          pyinstaller --onefile --noupx \
+          pyinstaller --onedir --noupx \
             --osx-bundle-identifier com.frostwire.Telluride \
+            --osx-entitlements-file Entitlements.plist \
             telluride.py
           mv dist/telluride telluride_macos.arm64
+          file telluride_macos.arm64/telluride
+          file telluride_macos.arm64/telluride | grep -q "arm64"
+          ditto -c -k --sequesterRsrc --keepParent telluride_macos.arm64 telluride_macos.arm64.zip
 
       - name: Organize artifact
         run: |
@@ -45,7 +56,7 @@ jobs:
             TAG_NAME="manual-build"
           fi
           mkdir -p "$TAG_NAME"
-          mv telluride_macos.arm64 "$TAG_NAME/"
+          mv telluride_macos.arm64.zip "$TAG_NAME/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -65,10 +65,30 @@ then
   fi
 fi
 
+# macOS: use --onedir instead of --onefile.
+# --onefile extracts the bundle into a fresh random _MEIxxxxxx temp
+# directory on every launch, and macOS runs a code-signature/trust
+# check for every Mach-O it loads from that new path (~8s for
+# telluride, re-checked on every invocation). Linux/Windows have no
+# such per-file trust check, so --onefile stays fast there and is
+# kept for a single-file binary.
+# --onedir ships a folder whose binaries are already signed on
+# disk, so macOS caches the validation and startup is ~0.2s,
+# the same as running `python3 telluride.py`.
+PYINSTALLER_MODE="--onefile"
 EXTRA_FLAGS=
 if ismac
 then
-  EXTRA_FLAGS="--osx-bundle-identifier com.frostwire.Telluride"
+  PYINSTALLER_MODE="--onedir"
+  EXTRA_FLAGS="--osx-bundle-identifier com.frostwire.Telluride --osx-entitlements-file Entitlements.plist"
+  # Sign every collected binary with the Developer ID identity when
+  # it is available in the keychain (the maintainer's Mac). Without
+  # it PyInstaller falls back to ad-hoc signing and sign.sh will
+  # re-sign the folder with --deep, so CI / other machines still work.
+  if security find-identity -v -p codesigning 2>/dev/null | grep -q "KET68JTS3L"
+  then
+    EXTRA_FLAGS="${EXTRA_FLAGS} --codesign-identity KET68JTS3L"
+  fi
 fi
 
 echo "Cleaning up..."
@@ -77,10 +97,10 @@ echo "Running ${PYLINT_CMD}..."
 echo ${PYLINT_CMD} --max-line-length=350 telluride.py
 ${PYLINT_CMD} --max-line-length=350 telluride.py
 read -p "[Press any key to continue] [Press Ctrl+C to cancel build]"
-echo "Running ${PYINSTALLER_CMD} --onefile ${EXTRA_FLAGS} telluride.py"
-${PYINSTALLER_CMD} --onefile --noupx ${EXTRA_FLAGS} telluride.py
+echo "Running ${PYINSTALLER_CMD} ${PYINSTALLER_MODE} ${EXTRA_FLAGS} telluride.py"
+${PYINSTALLER_CMD} ${PYINSTALLER_MODE} --noupx ${EXTRA_FLAGS} telluride.py
 
-if [ -f dist/telluride ]
+if [ -f dist/telluride ] || [ -f dist/telluride/telluride ] || [ -f dist/telluride.exe ]
 then
   if isubuntu || isdocker
   then
@@ -97,8 +117,15 @@ then
     if [ ${ARCH} == "i386" ]; then
         ARCH=x86_64
     fi
+    # --onedir output is a folder: telluride_macos.<arch>/telluride
+    # (x86_64 on Intel Macs, arm64 on Apple Silicon, decided by the
+    # machine this script runs on).
     mv dist/telluride telluride_macos.${ARCH}
     ./sign.sh
+    # ditto (not zip) preserves executable bits and macOS metadata,
+    # which plain zip can corrupt for Mach-O binaries.
+    ditto -c -k --sequesterRsrc --keepParent telluride_macos.${ARCH} telluride_macos.${ARCH}.zip
+    echo "Built telluride_macos.${ARCH}/ (executable: telluride_macos.${ARCH}/telluride) and telluride_macos.${ARCH}.zip"
   elif iswindows
   then
     mv dist/telluride.exe .

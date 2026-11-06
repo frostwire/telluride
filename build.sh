@@ -70,15 +70,13 @@ fi
 # directory on every launch, and macOS runs a code-signature/trust
 # check for every Mach-O it loads from that new path (~8s for
 # telluride, re-checked on every invocation). Linux/Windows have no
-# such per-file trust check, so --onefile stays fast there and is
-# kept for a single-file binary.
-# --onedir ships a folder whose binaries are already signed on
-# disk, so macOS caches the validation and startup is ~0.2s,
-# the same as running `python3 telluride.py`. A tiny native
-# launcher (launcher.c) is placed at the classic
-# telluride_macos.<arch> path and execs that folder, so
-# FrostWire and the installers keep finding a single
-# executable file exactly where they always did.
+# such per-file trust check, so --onefile stays fast there.
+# On macOS the signed --onedir folder is embedded in a tiny native
+# launcher (launcher.c, macos_launcher.sh), which is still the single
+# file telluride_macos.<arch>. Its first run unpacks the folder once
+# into ~/Library/Caches/com.frostwire.Telluride/<build>-<arch>-<hash>/
+# and every run execs it from there, so macOS validates it once and
+# startup is ~0.1s, the same as running `python3 telluride.py`.
 PYINSTALLER_MODE="--onefile"
 EXTRA_FLAGS=
 if ismac
@@ -121,38 +119,23 @@ then
     if [ ${ARCH} == "i386" ]; then
         ARCH=x86_64
     fi
-    # --onedir output is a folder; keep it as
-    # telluride_macos.<arch>.dir/ (x86_64 on Intel Macs, arm64 on
-    # Apple Silicon, decided by the machine this script runs on)
-    # and put a native launcher at the path FrostWire and the
-    # installers have always looked for: telluride_macos.<arch>
-    # (see launcher.c). The launcher just execs the bundle next
-    # to it, so the visible artifact stays a single executable
-    # file while startup stays ~0.2s instead of the ~8s a
-    # --onefile binary pays on macOS.
-    # Remove any previous build first: mv into an existing
-    # .dir folder would nest/merge into it and leave stale
-    # (e.g. CI-artifact, symlink-dereferenced) framework
-    # copies behind, which fail notarization.
+    # --onedir output is a folder: keep it as telluride_macos.<arch>.dir/
+    # (x86_64 on Intel Macs, arm64 on Apple Silicon, decided by the
+    # machine this script runs on). sign.sh signs its binaries, embeds
+    # it in the single-file launcher telluride_macos.<arch>
+    # (macos_launcher.sh) and signs and notarizes that.
+    # Remove any previous build first: mv into an existing .dir
+    # folder would nest/merge into it and leave stale (e.g.
+    # CI-artifact, symlink-dereferenced) framework copies behind,
+    # which fail notarization.
     rm -rf telluride_macos.${ARCH}.dir telluride_macos.${ARCH} telluride_macos.${ARCH}.zip
     mv dist/telluride telluride_macos.${ARCH}.dir
-    cc -O2 -arch ${ARCH} -o telluride_macos.${ARCH} launcher.c
     ./sign.sh
-    # ditto (not zip) preserves executable bits, symlinks (the
-    # Python.framework layout depends on them; plain zip follows
-    # them and breaks the code signature) and macOS metadata.
-    # ditto cannot archive multiple sources, so stage both the
-    # launcher file and its .dir folder into one directory and
-    # archive its contents at the zip root; unzip the result
-    # into FrostWire.app/Contents/MacOS/ (or the telluride/
-    # folder when running from source).
-    STAGE="telluride_macos.${ARCH}.staging"
-    rm -rf "${STAGE}"
-    mkdir -p "${STAGE}"
-    cp -R telluride_macos.${ARCH} telluride_macos.${ARCH}.dir "${STAGE}/"
-    ditto -c -k --sequesterRsrc "${STAGE}" telluride_macos.${ARCH}.zip
-    rm -rf "${STAGE}"
-    echo "Built telluride_macos.${ARCH} (launcher) + telluride_macos.${ARCH}.dir/ (bundle) and telluride_macos.${ARCH}.zip"
+    # The distributed file is telluride_macos.<arch> alone. The zip
+    # (ditto keeps the executable bit) is the release asset; the .dir
+    # folder stays here only so sign.sh can re-embed it.
+    ditto -c -k --norsrc telluride_macos.${ARCH} telluride_macos.${ARCH}.zip
+    echo "Built telluride_macos.${ARCH} (single file, bundle embedded) and telluride_macos.${ARCH}.zip"
   elif iswindows
   then
     mv dist/telluride.exe .
